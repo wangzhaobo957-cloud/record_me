@@ -54,7 +54,7 @@ int main() {
     // ===== 主交互循环 =====
     std::cout << "=== Mini ReAct Agent ===" << std::endl;
     std::cout << "Enter your question (or 'quit' to exit):" << std::endl;
-
+        //用户输入的问题
     std::string userInput;
     // 主交互循环：用户输入 → 拼接 system prompt → 进入 ReAct 循环 → 输出最终答案
     while (true) {
@@ -66,7 +66,14 @@ int main() {
 
         // 每轮新问题：清空历史，重新拼接 system prompt + 用户问题
         clearHistory();
+        //本质是一个vector, 每个vector都是一个Message, 包含role和 content字段
+        //struct Message {
+        //    std::string role;    // 角色: "system" / "user" / "assistant"
+        //    std::string content; // 消息内容
+        //};
+        //把提示词放进去
         addMessage("system", buildSystemPrompt());
+        //把用户的问题放进去
         addMessage("user", userInput);
 
         // ===== ReAct 循环 =====
