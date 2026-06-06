@@ -4,9 +4,14 @@
 
 static std::vector<Message> history; // 全局消息历史
 
-// 追加一条消息（role + content）
+// 追加一条完整消息（可携带 tool_calls / tool_call_id）
+void addMessage(const Message& msg) {
+    history.push_back(msg);
+}
+
+// 便捷重载：只有 role + content 的简单消息
 void addMessage(const std::string& role, const std::string& content) {
-    history.push_back({role, content});
+    history.push_back({role, content, {}, ""});
 }
 
 // 返回当前所有消息历史的引用，用于发给 LLM
