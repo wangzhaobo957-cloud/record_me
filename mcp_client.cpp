@@ -52,11 +52,13 @@ static json rpcCall(const std::string& method, const json& params) {
 bool mcpStart(const std::string& serverPath) {
     int inPipe[2];  // 父写 -> 子读（子进程的 stdin）
     int outPipe[2]; // 子写 -> 父读（子进程的 stdout）
+    // 创建管道
     if (pipe(inPipe) < 0 || pipe(outPipe) < 0) return false;
 
     g_serverPid = fork();
+    // fork 失败
     if (g_serverPid < 0) return false;
-
+    // 子进程
     if (g_serverPid == 0) {
         // ===== 子进程：变身为 MCP Server =====
         dup2(inPipe[0], STDIN_FILENO);   // 子进程 stdin <- inPipe 读端
@@ -72,8 +74,9 @@ bool mcpStart(const std::string& serverPath) {
     // ===== 父进程：保留通信用的管道端 =====
     close(inPipe[0]);   // 父进程不读 inPipe
     close(outPipe[1]);  // 父进程不写 outPipe
-    g_toServer = inPipe[1];
-    g_fromServer = outPipe[0];
+    g_toServer = inPipe[1];// 写端：Agent -> Server 的 stdin
+    g_fromServer = outPipe[0];// 读端：Server 的 stdout -> Agent
+    // 包装读端，方便按行读取
     g_readFp = fdopen(g_fromServer, "r");
 
     // initialize 握手

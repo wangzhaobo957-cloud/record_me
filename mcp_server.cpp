@@ -37,6 +37,7 @@ static json buildToolsList() {
         {"properties", {
             {"expression", {{"type", "string"}, {"description", "a math expression, e.g. 3+5*2"}}}
         }},
+        // 限制：expression 是必填项
         {"required", json::array({"expression"})}
     };
 
@@ -48,6 +49,7 @@ static json buildToolsList() {
         {"properties", {
             {"query", {{"type", "string"}, {"description", "the search query"}}}
         }},
+        // 限制：query 是必填项
         {"required", json::array({"query"})}
     };
 
