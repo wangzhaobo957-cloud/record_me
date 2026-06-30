@@ -159,6 +159,13 @@
     const input = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
 
+    // 会话 ID：持久化到 localStorage，刷新页面也能延续同一段对话记忆
+    let sessionId = localStorage.getItem("emotion_session_id");
+    if (!sessionId) {
+      sessionId = "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("emotion_session_id", sessionId);
+    }
+
     function addMessage(text, who) {
       const msg = document.createElement("div");
       msg.className = "msg " + who;
@@ -189,7 +196,7 @@
         const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({ message: text, session_id: sessionId }),
         });
         const data = await res.json();
         typing.remove();

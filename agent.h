@@ -30,18 +30,6 @@ struct ToolSpec {
     std::string inputSchema; // 参数的 JSON Schema（字符串形式）
 };
 
-// ===== memory.cpp =====
-void addMessage(const Message& msg);                 // 追加一条完整消息
-void addMessage(const std::string& role, const std::string& content); // 便捷重载
-std::vector<Message>& getHistory();                  // 获取全部消息历史
-void clearHistory();                                 // 清空历史（每轮新对话前调用）
-
-// ===== mcp_client.cpp =====
-bool mcpStart(const std::string& serverPath);        // 拉起 MCP Server 子进程并完成 initialize 握手
-std::vector<ToolSpec> mcpListTools();                // tools/list：动态发现工具
-std::string mcpCallTool(const std::string& name, const std::string& arguments); // tools/call：执行工具
-void mcpStop();                                      // 关闭 MCP Server 子进程
-
 // ===== LLM.cpp =====
 // 调用大模型（Function Calling）：传入消息历史 + 可用工具规格，返回一条 assistant 消息
 Message callLLM(const std::vector<Message>& messages, const std::vector<ToolSpec>& tools);

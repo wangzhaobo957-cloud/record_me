@@ -10,8 +10,22 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <map>
+#include <mutex>
 
 using json = nlohmann::json;
+
+// ===== 会话记忆 =====
+// 每个访客一份独立的对话历史，按 session_id 隔离。
+// 这就是"记忆"的本体：和你 C++ CLI 版 memory.cpp 里的 vector<Message> 思路一致，
+// 只是这里用 map 给每个 session 各存一份。
+static std::map<std::string, std::vector<Message>> g_sessions;
+// cpp-httplib 是多线程的，多个请求可能同时读写 g_sessions，必须加锁。
+static std::mutex g_sessionsMutex;
+
+// 单个 session 最多保留多少条历史消息（不含 system）。
+// 防止对话过长导致 token 爆掉——这就是最朴素的"上下文裁剪"。
+static const size_t MAX_HISTORY = 20;
 
 // 情感指导大师的人设（价值全在这段 prompt 里）
 static const char* SYSTEM_PROMPT =
@@ -48,7 +62,7 @@ int main() {
         res.set_content(html, "text/html; charset=utf-8");
     });
 
-    // 对话接口：无状态，每次只带 system + 当前用户输入
+    // 对话接口：有状态，按 session_id 记住整段对话
     svr.Post("/chat", [](const httplib::Request& req, httplib::Response& res) {
         json out;
 
@@ -60,24 +74,49 @@ int main() {
         }
 
         std::string userMessage = in.value("message", "");
+        std::string sessionId = in.value("session_id", "");
         if (userMessage.empty()) {
             out["reply"] = "你想聊点什么呢？我在这里陪着你。";
             res.set_content(out.dump(), "application/json; charset=utf-8");
             return;
         }
+        if (sessionId.empty()) sessionId = "default";
 
-        // 构造无状态消息历史：system（人设）+ user（本次输入）
+        // ===== 取出该 session 的历史，拼出本次要发给模型的完整消息 =====
+        // 结构：system（人设） + 该 session 的历史（user/assistant 交替） + 本次 user 输入
         std::vector<Message> messages;
-        Message sys; sys.role = "system"; sys.content = SYSTEM_PROMPT;
-        Message usr; usr.role = "user";   usr.content = userMessage;
-        messages.push_back(sys);
-        messages.push_back(usr);
+        {
+            std::lock_guard<std::mutex> lock(g_sessionsMutex);
+            std::vector<Message>& history = g_sessions[sessionId];
+
+            // 先把用户这句话存进历史
+            Message usr; usr.role = "user"; usr.content = userMessage;
+            history.push_back(usr);
+
+            // 裁剪：只保留最近 MAX_HISTORY 条，防止 token 无限膨胀
+            if (history.size() > MAX_HISTORY) {
+                history.erase(history.begin(), history.end() - MAX_HISTORY);
+            }
+
+            // 组装发给模型的消息：system 在最前，后面接整段历史
+            Message sys; sys.role = "system"; sys.content = SYSTEM_PROMPT;
+            messages.push_back(sys);
+            for (auto& m : history) messages.push_back(m);
+        }
 
         // 复用现有 callLLM；情感大师不需要工具，tools 传空
         std::vector<ToolSpec> noTools;
         Message reply = callLLM(messages, noTools);
+        std::string replyText = reply.content.empty() ? "（暖心一时语塞了…）" : reply.content;
 
-        out["reply"] = reply.content.empty() ? "（暖心一时语塞了…）" : reply.content;
+        // ===== 把模型回复也存回该 session 的历史，下一轮才能"记住" =====
+        {
+            std::lock_guard<std::mutex> lock(g_sessionsMutex);
+            Message bot; bot.role = "assistant"; bot.content = replyText;
+            g_sessions[sessionId].push_back(bot);
+        }
+
+        out["reply"] = replyText;
         res.set_content(out.dump(), "application/json; charset=utf-8");
     });
 
